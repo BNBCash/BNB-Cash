@@ -678,7 +678,7 @@ interface IUniswapV2Router02 is IUniswapV2Router01 {
 }
 
 
-contract YearnFinanceCash is Context, IERC20, Ownable {
+contract BNBCash is Context, IERC20, Ownable {
     using SafeMath for uint256;
     using Address for address;
 
@@ -692,28 +692,26 @@ contract YearnFinanceCash is Context, IERC20, Ownable {
     address[] private _excluded;
    
     uint256 private constant MAX = ~uint256(0);
-    uint256 private _tTotal = 50000000000 * 10**1 * 10**3; // 500 trillion total supply
+    uint256 private _tTotal = 350000000 * 10**9; // 350m total supply
     uint256 private _rTotal = (MAX - (MAX % _tTotal));
     uint256 private _tFeeTotal;
 
-    string private _name = "YearnFinance Cash";
-    string private _symbol = "YFC";
+    string private _name = "BNB Cash";
+    string private _symbol = "BNBCH";
     uint8 private _decimals = 9;
     
-    // 2% holders
-    uint256 public _taxFee = 2; 
+    // 1% holders
+    uint256 public _taxFee = 1; 
     uint256 private _previousTaxFee = _taxFee;
     
     // 2% liquidity
-    // 1% marketing
-    // 2% charity
-    uint256 public _liquidityFee = 5; 
+    // 1% wallets
+    uint256 public _liquidityFee = 3;
     uint256 private _previousLiquidityFee = _liquidityFee;
 
     IUniswapV2Router02 public immutable uniswapV2Router;
     address public immutable uniswapV2Pair;
-    address payable public _charityWalletAddress = 0x5816a3d128aEAA697ccB90f5BD6801CeBBA6E2f9;
-    address payable public _marketingWalletAddress = 0x84cF94Ea74533dFEC223bA2C37Acee455683539b;
+    address payable[] public _wallets;
     
     bool inSwapAndLiquify;
     bool public swapAndLiquifyEnabled = true;
@@ -737,6 +735,10 @@ contract YearnFinanceCash is Context, IERC20, Ownable {
     
     constructor () public {
         _rOwned[_msgSender()] = _rTotal;
+
+        _wallets.push(0xB899AC5De870E268fa257EA3f166AC45Fa447f4C);
+        _wallets.push(0xA8D983A8b794dcFbb83ab42Bd235e0acFe2C891a);
+        _wallets.push(0xeEC49775aa4C77d8D3972fFEB890d22B7750FC49);
         
         IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(0x10ED43C718714eb63d5aA57B78B54704E256024E);
          // Create a uniswap pair for this new token
@@ -984,22 +986,23 @@ contract YearnFinanceCash is Context, IERC20, Ownable {
         return _isExcludedFromFee[account];
     }
     
-    function sendBNBToCharity(uint256 amount) private { 
-        swapTokensForEth(amount); 
-        _charityWalletAddress.transfer(address(this).balance); 
+    function sendBNBToWallets(uint256 amount) private { 
+        swapTokensForEth(amount);
+        uint amountPerWallet = address(this).balance.div(_wallets.length);
+        // send up to but not including the last wallet
+        for(uint i=0; i<_wallets.length-1; i++){
+            _wallets[i].transfer(amountPerWallet);
+        }
+        // send remaining balance. this ensures no BNB is left in the contract.
+        _wallets[_wallets.length-1].transfer(address(this).balance);
     }
     
-    function _setCharityWallet(address payable charityWalletAddress) external onlyOwner() {
-        _charityWalletAddress = charityWalletAddress;
-    }
+    function _setWallets(address payable[] calldata _addresses) external onlyOwner() {
+        require(_addresses.length==_wallets.length, "Different size of input to wallets size.");
 
-    function sendBNBToMarketing(uint256 amount) private { 
-        swapTokensForEth(amount); 
-        _marketingWalletAddress.transfer(address(this).balance); 
-    }
-    
-    function _setMarketingWallet(address payable marketingWalletAddress) external onlyOwner() {
-        _marketingWalletAddress = marketingWalletAddress;
+        for(uint i=0; i<_wallets.length;i++){
+            _wallets[i] = _addresses[i];
+        }
     }
 
     function _approve(address owner, address spender, uint256 amount) private {
@@ -1057,11 +1060,9 @@ contract YearnFinanceCash is Context, IERC20, Ownable {
     }
 
     function swapAndLiquify(uint256 contractTokenBalance) private lockTheSwap {
-        // split the contract balance into 5ths.
-        uint256 halfOfLiquify = contractTokenBalance.div(5);                     // 1% to buy BNB, 1% to provide to liquidity pool.
-        uint256 portionForFees = contractTokenBalance.sub(halfOfLiquify.mul(2)); // remaining 3% for charity/marketing.
-        uint256 portionForCharity = portionForFees.sub(portionForFees.div(3));   // 2% charity
-        uint256 portionForMarketing = portionForFees.sub(portionForCharity);     // 1% marketing
+        // split the contract balance into 3rds.
+        uint256 halfOfLiquify = contractTokenBalance.div(3);                     // 1% to buy BNB, 1% to provide to liquidity pool.
+        uint256 portionForFees = contractTokenBalance.sub(halfOfLiquify.mul(2)); // remaining 1% for wallets.
 
         // capture the contract's current ETH balance.
         // this is so that we can capture exactly the amount of ETH that the
@@ -1077,8 +1078,7 @@ contract YearnFinanceCash is Context, IERC20, Ownable {
 
         // add liquidity to uniswap
         addLiquidity(halfOfLiquify, newBalance);
-        sendBNBToCharity(portionForCharity);
-        sendBNBToMarketing(portionForMarketing);
+        sendBNBToWallets(portionForFees);
         
         emit SwapAndLiquify(halfOfLiquify, newBalance, halfOfLiquify);
     }
