@@ -1,4 +1,4 @@
-pragma solidity ^0.6.12;
+pragma solidity ^0.6.6;
 // SPDX-License-Identifier: Unlicensed
 interface IERC20 {
 
@@ -690,23 +690,24 @@ contract BNBCash is Context, IERC20, Ownable {
 
     mapping (address => bool) private _isExcluded;
     address[] private _excluded;
-   
     uint256 private constant MAX = ~uint256(0);
-    uint256 private _tTotal = 350000000 * 10**9; // 350m total supply
-    uint256 private _rTotal = (MAX - (MAX % _tTotal));
-    uint256 private _tFeeTotal;
 
-    string private _name = "BNB Cash";
-    string private _symbol = "BNBCH";
+    // ******************* START VARIABLES *******************
+    string private _name = "BNB Cash";                                                 // name
+    string private _symbol = "BNBCH";                                                  // symbol
+    uint256 private _tTotal = 350000000 * 10**9;                                       // 350 million total supply
+    uint256 public _taxFee = 1;                                                        // 1% to holders
+    uint256 public _liquidityFee = 3;                                                  // 2% converted to liquidity, 1% to wallet(s)
+    uint256 public _maxTxAmount = _tTotal.div(200);                                    // max transaction amount is 0.5% of token supply.
+    uint256 private numTokensSellToAddToLiquidity = _tTotal.div(2000);                 // contract balance to trigger swap to liquidity and wallet transfer is 0.05% of token supply.
+    address public  PancakeRouterAddress = 0x10ED43C718714eb63d5aA57B78B54704E256024E; // Pancake Router Version 2 address
+    // ******************* END VARIABLES *********************
+
+    uint256 private _tFeeTotal;
+    uint256 private _rTotal = (MAX - (MAX % _tTotal));
     uint8 private _decimals = 9;
     
-    // 1% holders
-    uint256 public _taxFee = 1; 
     uint256 private _previousTaxFee = _taxFee;
-    
-    // 2% liquidity
-    // 1% wallets
-    uint256 public _liquidityFee = 3;
     uint256 private _previousLiquidityFee = _liquidityFee;
 
     IUniswapV2Router02 public immutable uniswapV2Router;
@@ -715,9 +716,6 @@ contract BNBCash is Context, IERC20, Ownable {
     
     bool inSwapAndLiquify;
     bool public swapAndLiquifyEnabled = true;
-    
-    uint256 public _maxTxAmount = 1000000000 * 10**1 * 10**9;
-    uint256 private numTokensSellToAddToLiquidity = 300000000 * 10**1 * 10**9;
     
     event MinTokensBeforeSwapUpdated(uint256 minTokensBeforeSwap);
     event SwapAndLiquifyEnabledUpdated(bool enabled);
@@ -740,7 +738,7 @@ contract BNBCash is Context, IERC20, Ownable {
         _wallets.push(0xA8D983A8b794dcFbb83ab42Bd235e0acFe2C891a);
         _wallets.push(0xeEC49775aa4C77d8D3972fFEB890d22B7750FC49);
         
-        IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(0x10ED43C718714eb63d5aA57B78B54704E256024E);
+        IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(PancakeRouterAddress);
          // Create a uniswap pair for this new token
         uniswapV2Pair = IUniswapV2Factory(_uniswapV2Router.factory())
             .createPair(address(this), _uniswapV2Router.WETH());
