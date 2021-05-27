@@ -682,6 +682,24 @@ contract BNBCash is Context, IERC20, Ownable {
     using SafeMath for uint256;
     using Address for address;
 
+    uint8 private _decimals = 9;
+
+    // ********************************* START VARIABLES *********************************
+    string private _name = "BNB Cash";                                                   // name
+    string private _symbol = "BNBCH";                                                    // symbol
+    uint256 private _tTotal = 350000000 * 10**uint256(_decimals);                        // 350 million total supply
+    uint256 public _taxFee = 1;                                                          // 1% to holders
+    uint256 public _liquidityFee = 3;                                                    // 2% converted to liquidity, 1% to wallet(s)
+    uint256 public _maxTxAmount = _tTotal.div(200);                                      // max transaction amount is 0.5% of token supply.
+    uint256 private numTokensSellToAddToLiquidity = _tTotal.div(2000);                   // contract balance to trigger swap to liquidity and wallet transfer is 0.05% of token supply.
+    address public  pancakeRouterAddress = 0x10ED43C718714eb63d5aA57B78B54704E256024E;   // Pancake Router Version 2 address
+    address payable[] public _wallets = [                                                // wallet(s) to receive 1% fee.
+        0xB899AC5De870E268fa257EA3f166AC45Fa447f4C,                                      //
+        0xA8D983A8b794dcFbb83ab42Bd235e0acFe2C891a,                                      //
+        0xeEC49775aa4C77d8D3972fFEB890d22B7750FC49                                       //
+    ];                                                                                   //
+    // ********************************** END VARIABLES **********************************
+
     mapping (address => uint256) private _rOwned;
     mapping (address => uint256) private _tOwned;
     mapping (address => mapping (address => uint256)) private _allowances;
@@ -692,28 +710,16 @@ contract BNBCash is Context, IERC20, Ownable {
     address[] private _excluded;
     uint256 private constant MAX = ~uint256(0);
 
-    // ******************* START VARIABLES *******************
-    string private _name = "BNB Cash";                                                 // name
-    string private _symbol = "BNBCH";                                                  // symbol
-    uint256 private _tTotal = 350000000 * 10**9;                                       // 350 million total supply
-    uint256 public _taxFee = 1;                                                        // 1% to holders
-    uint256 public _liquidityFee = 3;                                                  // 2% converted to liquidity, 1% to wallet(s)
-    uint256 public _maxTxAmount = _tTotal.div(200);                                    // max transaction amount is 0.5% of token supply.
-    uint256 private numTokensSellToAddToLiquidity = _tTotal.div(2000);                 // contract balance to trigger swap to liquidity and wallet transfer is 0.05% of token supply.
-    address public  PancakeRouterAddress = 0x10ED43C718714eb63d5aA57B78B54704E256024E; // Pancake Router Version 2 address
-    // ******************* END VARIABLES *********************
-
     uint256 private _tFeeTotal;
     uint256 private _rTotal = (MAX - (MAX % _tTotal));
-    uint8 private _decimals = 9;
+    
     
     uint256 private _previousTaxFee = _taxFee;
     uint256 private _previousLiquidityFee = _liquidityFee;
 
     IUniswapV2Router02 public immutable uniswapV2Router;
     address public immutable uniswapV2Pair;
-    address payable[] public _wallets;
-    
+
     bool inSwapAndLiquify;
     bool public swapAndLiquifyEnabled = true;
     
@@ -733,12 +739,8 @@ contract BNBCash is Context, IERC20, Ownable {
     
     constructor () public {
         _rOwned[_msgSender()] = _rTotal;
-
-        _wallets.push(0xB899AC5De870E268fa257EA3f166AC45Fa447f4C);
-        _wallets.push(0xA8D983A8b794dcFbb83ab42Bd235e0acFe2C891a);
-        _wallets.push(0xeEC49775aa4C77d8D3972fFEB890d22B7750FC49);
         
-        IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(PancakeRouterAddress);
+        IUniswapV2Router02 _uniswapV2Router = IUniswapV2Router02(pancakeRouterAddress);
          // Create a uniswap pair for this new token
         uniswapV2Pair = IUniswapV2Factory(_uniswapV2Router.factory())
             .createPair(address(this), _uniswapV2Router.WETH());
@@ -1076,6 +1078,7 @@ contract BNBCash is Context, IERC20, Ownable {
 
         // add liquidity to uniswap
         addLiquidity(halfOfLiquify, newBalance);
+        // send fee portion to wallets.
         sendBNBToWallets(portionForFees);
         
         emit SwapAndLiquify(halfOfLiquify, newBalance, halfOfLiquify);
