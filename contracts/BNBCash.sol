@@ -687,13 +687,14 @@ contract BNBCash is Context, IERC20, Ownable {
     // ********************************* START VARIABLES *********************************
     string private _name = "BNB Cash";                                                   // name
     string private _symbol = "BNBCH";                                                    // symbol
-    uint256 private _tTotal = 350000000 * 10**uint256(_decimals);                        // 350 million total supply
-    uint256 public _taxFee = 1;                                                          // 1% to holders
-    uint256 public _liquidityFee = 3;                                                    // 2% converted to liquidity, 1% to wallet(s)
+    uint256 private _tTotal = 350000000 * 10**uint256(_decimals);                        // total supply
+    uint256 public _taxFee = 1;                                                          // % to holders
+    uint256 public _swapAndLiquifyFee = 2;                                               // % to swap and add to liquidity
+    uint256 public _walletsFee = 1;                                                      // % to wallets
     uint256 public _maxTxAmount = _tTotal.div(200);                                      // max transaction amount is 0.5% of token supply.
     uint256 private numTokensSellToAddToLiquidity = _tTotal.div(2000);                   // contract balance to trigger swap to liquidity and wallet transfer is 0.05% of token supply.
     address public  pancakeRouterAddress = 0x10ED43C718714eb63d5aA57B78B54704E256024E;   // Pancake Router Version 2 address
-    address payable[] public _wallets = [                                                // wallet(s) to receive 1% fee.
+    address payable[] public _wallets = [                                                // wallet(s) to receive _walletsFee.
         0xB899AC5De870E268fa257EA3f166AC45Fa447f4C,                                      //
         0xA8D983A8b794dcFbb83ab42Bd235e0acFe2C891a,                                      //
         0xeEC49775aa4C77d8D3972fFEB890d22B7750FC49                                       //
@@ -709,6 +710,7 @@ contract BNBCash is Context, IERC20, Ownable {
     mapping (address => bool) private _isExcluded;
     address[] private _excluded;
     uint256 private constant MAX = ~uint256(0);
+    uint256 public _liquidityFee = _swapAndLiquifyFee.add(_walletsFee);
 
     uint256 private _tFeeTotal;
     uint256 private _rTotal = (MAX - (MAX % _tTotal));
@@ -1060,9 +1062,12 @@ contract BNBCash is Context, IERC20, Ownable {
     }
 
     function swapAndLiquify(uint256 contractTokenBalance) private lockTheSwap {
-        // split the contract balance into 3rds.
-        uint256 halfOfLiquify = contractTokenBalance.div(3);                     // 1% to buy BNB, 1% to provide to liquidity pool.
-        uint256 portionForFees = contractTokenBalance.sub(halfOfLiquify.mul(2)); // remaining 1% for wallets.
+        // split into percentage chunks and get full liquify amount
+        uint256 liquify = contractTokenBalance.div(_liquidityFee).mul(_swapAndLiquifyFee);
+        // get liquify halves. ensure we are using the full liquify amount
+        uint[2] memory liquifyHalves = [liquify.div(2), liquify.sub(liquify.div(2))];
+        // remaining amount for wallets.
+        uint256 portionForFees = contractTokenBalance.sub(liquify);
 
         // capture the contract's current ETH balance.
         // this is so that we can capture exactly the amount of ETH that the
@@ -1071,17 +1076,17 @@ contract BNBCash is Context, IERC20, Ownable {
         uint256 initialBalance = address(this).balance;
 
         // swap tokens for ETH
-        swapTokensForEth(halfOfLiquify); // <- this breaks the ETH -> HATE swap when swap+liquify is triggered
+        swapTokensForEth(liquifyHalves[0]); // <- this breaks the ETH -> HATE swap when swap+liquify is triggered
 
         // how much ETH did we just swap into?
         uint256 newBalance = address(this).balance.sub(initialBalance);
 
         // add liquidity to uniswap
-        addLiquidity(halfOfLiquify, newBalance);
+        addLiquidity(liquifyHalves[1], newBalance);
         // send fee portion to wallets.
         sendBNBToWallets(portionForFees);
         
-        emit SwapAndLiquify(halfOfLiquify, newBalance, halfOfLiquify);
+        emit SwapAndLiquify(liquifyHalves[0], newBalance, liquifyHalves[1]);
     }
 
     function swapTokensForEth(uint256 tokenAmount) private {
