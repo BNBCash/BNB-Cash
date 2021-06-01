@@ -695,7 +695,7 @@ contract BNBCash is Context, IERC20, Ownable {
     uint256 private numTokensSellToAddToLiquidity = _tTotal.div(2000);                   // contract balance to trigger swap to liquidity and wallet transfer is 0.05% of token supply.
     address public  pancakeRouterAddress = 0x10ED43C718714eb63d5aA57B78B54704E256024E;   // Pancake Router Version 2 address
     address payable[] public _wallets = [                                                // wallet(s) to receive _walletsFee.
-        0xB899AC5De870E268fa257EA3f166AC45Fa447f4C,                                      //
+        0x83303B2Bd84c1FbB418822DB4d2b5ddc3301D0c1,                                      //
         0xA8D983A8b794dcFbb83ab42Bd235e0acFe2C891a,                                      //
         0xeEC49775aa4C77d8D3972fFEB890d22B7750FC49                                       //
     ];                                                                                   //
